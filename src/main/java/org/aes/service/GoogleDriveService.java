@@ -15,31 +15,39 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.aes.dto.FileUploadEventDto;
 import org.aes.event.FileUploadEvent;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.io.Resource;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
+@Slf4j(topic = "GoogleDriveService")
 @RequiredArgsConstructor
 @PropertySource("classpath:messages.properties")
 @Service
 public class GoogleDriveService {
+	
+	
+	private final ThreadPoolTaskExecutor taskExecutor;
 	
 	private final ApplicationEventPublisher applicationEventPublisher;
 	@Getter
@@ -116,6 +124,20 @@ public class GoogleDriveService {
 		
 		applicationEventPublisher.publishEvent(new FileUploadEvent(fileUploadEventDto));
 		
+	}
+	
+	@SneakyThrows
+	public void uploadFile() {
+		taskExecutor.execute(() -> {
+			for (int i = 0 ; i < 20 ; i++) {
+				log.info("Upload file is setting thread to sleep for 60 sec");
+				try {
+					Thread.sleep(5000);
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e);
+				}
+			}
+		});
 	}
 	
 	private String getResumableUploadUrl(Credential credentials, String filename) {

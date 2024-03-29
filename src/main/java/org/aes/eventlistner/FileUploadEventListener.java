@@ -2,6 +2,7 @@ package org.aes.eventlistner;
 
 import org.aes.dto.FileUploadEventDto;
 import org.aes.event.FileUploadEvent;
+import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 

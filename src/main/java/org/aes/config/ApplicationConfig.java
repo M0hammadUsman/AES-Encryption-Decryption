@@ -1,7 +1,13 @@
 package org.aes.config;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -26,4 +32,32 @@ public class ApplicationConfig {
 		return daoAuthProvider;
 		
 	}
+	
+	// @Async will use this if not created then it will use SimpleAsyncTaskExecutor
+	
+	@Bean
+	public ThreadPoolTaskExecutor threadPoolTaskExecutor() {
+		
+		var executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(2);
+		executor.setMaxPoolSize(10);
+		executor.setAllowCoreThreadTimeOut(true); // Default keep-alive seconds are set to 60
+		executor.setWaitForTasksToCompleteOnShutdown(true); // To my understanding allows graceful shutdown
+		executor.setThreadNamePrefix("AES-ThreadPoolExecutor-");
+		executor.initialize();
+		
+		return executor;
+		
+	}
+	
+//	@Bean
+//	public SimpleAsyncTaskExecutor simpleAsyncTaskExecutor() {
+//		return new SimpleAsyncTaskExecutor("AES-SimpleAsyncExecutor-");
+//	}
+
+//	@Bean
+//	public ApplicationListener<ContextClosedEvent> contextClosedEventListener(ThreadPoolTaskExecutor taskExecutor) {
+//		return event -> taskExecutor.shutdown();
+//	}
+
 }
