@@ -1,11 +1,7 @@
 package org.aes.config;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -50,10 +46,15 @@ public class ApplicationConfig {
 		
 	}
 	
-//	@Bean
-//	public SimpleAsyncTaskExecutor simpleAsyncTaskExecutor() {
-//		return new SimpleAsyncTaskExecutor("AES-SimpleAsyncExecutor-");
-//	}
+	@Bean
+	public SimpleAsyncTaskExecutor simpleAsyncTaskExecutor() {
+		
+		var executor = new SimpleAsyncTaskExecutor("AES-SimpleAsyncExecutor-");
+		executor.setVirtualThreads(true);
+		
+		return executor;
+		
+	}
 
 //	@Bean
 //	public ApplicationListener<ContextClosedEvent> contextClosedEventListener(ThreadPoolTaskExecutor taskExecutor) {

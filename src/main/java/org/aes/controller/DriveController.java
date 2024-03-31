@@ -20,6 +20,6 @@ public class DriveController {
 	@PostMapping("/create")
 	public void create(@AuthenticationPrincipal User user,
 	                   @RequestPart MultipartFile file) {
-		googleDriveService.createFile(user.getUsername(), file);
+		googleDriveService.initiateUpload(user.getUsername(), file);
 	}
 }
