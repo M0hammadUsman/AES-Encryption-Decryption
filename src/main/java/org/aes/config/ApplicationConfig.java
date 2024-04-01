@@ -39,7 +39,7 @@ public class ApplicationConfig {
 		executor.setMaxPoolSize(10);
 		executor.setAllowCoreThreadTimeOut(true); // Default keep-alive seconds are set to 60
 		executor.setWaitForTasksToCompleteOnShutdown(true); // To my understanding allows graceful shutdown
-		executor.setThreadNamePrefix("AES-ThreadPoolExecutor-");
+		executor.setThreadNamePrefix("ThreadPoolExecutor-");
 		executor.initialize();
 		
 		return executor;
@@ -49,7 +49,7 @@ public class ApplicationConfig {
 	@Bean
 	public SimpleAsyncTaskExecutor simpleAsyncTaskExecutor() {
 		
-		var executor = new SimpleAsyncTaskExecutor("AES-SimpleAsyncExecutor-");
+		var executor = new SimpleAsyncTaskExecutor("SimpleAsyncExecutor-");
 		executor.setVirtualThreads(true);
 		
 		return executor;

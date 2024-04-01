@@ -15,13 +15,10 @@ import java.util.List;
 public class FileUploadEventListener {
 	
 	private final GoogleDriveService googleDriveService;
-	private static final List<FileUploadEventDto> fileUploadEventDtoList = new ArrayList<>();
 	
 	@EventListener
 	public void onFileUploadEvent(FileUploadEvent fileUploadEvent) {
-		fileUploadEventDtoList.add(fileUploadEvent.getFileUploadEventDto());
 		googleDriveService.uploadFileChunks(fileUploadEvent.getFileUploadEventDto());
-		
 	}
 	
 }

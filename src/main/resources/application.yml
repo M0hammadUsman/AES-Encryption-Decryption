@@ -16,9 +16,9 @@ spring:
       max-request-size: 500MB
 
   datasource:
-    url: ${db_url}
-    username: ${db_username}
-    password: ${db_password}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:

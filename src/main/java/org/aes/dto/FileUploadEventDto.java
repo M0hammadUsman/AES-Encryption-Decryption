@@ -1,8 +1,8 @@
 package org.aes.dto;
 
-import org.springframework.web.multipart.MultipartFile;
+import java.io.File;
 
 public record FileUploadEventDto(
-	MultipartFile file,
+	File file,
 	String resumableUrl
 ) {}
