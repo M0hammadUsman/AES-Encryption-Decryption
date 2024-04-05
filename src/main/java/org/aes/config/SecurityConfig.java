@@ -49,8 +49,15 @@ public class SecurityConfig {
 				s
 					.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
 			)
+			.rememberMe(remember ->
+				remember
+					.key(secretKey)
+			)
+			.logout(logout ->
+				logout // The session will be invalidated by default
+					.deleteCookies("JSESSIONID")
+			)
 			.httpBasic(Customizer.withDefaults())
-			.rememberMe(Customizer.withDefaults())
 			.authenticationProvider(authenticationProvider)
 			.csrf(AbstractHttpConfigurer::disable)
 			.build();

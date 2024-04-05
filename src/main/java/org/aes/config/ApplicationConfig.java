@@ -29,9 +29,7 @@ public class ApplicationConfig {
 		
 	}
 	
-	// @Async will use this if not created then it will use SimpleAsyncTaskExecutor
-	
-	@Bean
+	/*@Bean
 	public ThreadPoolTaskExecutor threadPoolTaskExecutor() {
 		
 		var executor = new ThreadPoolTaskExecutor();
@@ -54,11 +52,6 @@ public class ApplicationConfig {
 		
 		return executor;
 		
-	}
-
-//	@Bean
-//	public ApplicationListener<ContextClosedEvent> contextClosedEventListener(ThreadPoolTaskExecutor taskExecutor) {
-//		return event -> taskExecutor.shutdown();
-//	}
+	}*/
 
 }

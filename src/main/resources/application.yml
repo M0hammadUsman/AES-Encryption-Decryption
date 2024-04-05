@@ -28,6 +28,10 @@ spring:
     virtual:
       enabled: true
 
+  task:
+    execution:
+      thread-name-prefix: Virtual-Async-
+
 logging:
   level:
-    root: info
+    org.aes.service: debug
