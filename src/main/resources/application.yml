@@ -15,15 +15,28 @@ spring:
       max-file-size: 500MB
       max-request-size: 500MB
 
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:scheme.sql
+
   datasource:
-    url: ${db_url}
-    username: ${db_username}
-    password: ${db_password}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
       ddl-auto: update
 
+  threads:
+    virtual:
+      enabled: true
+
+  task:
+    execution:
+      thread-name-prefix: Virtual-Async-
+
 logging:
   level:
-    root: info
+    org.aes.service: info

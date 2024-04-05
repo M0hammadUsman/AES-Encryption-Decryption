@@ -2,29 +2,31 @@ package org.aes.helper;
 
 import lombok.SneakyThrows;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.nio.ByteBuffer;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
 public class FileChunkProvider {
 
+	private FileChunkProvider() {
+	
+	}
+	
 	@SneakyThrows
 	public static List<ByteBuffer> getChunks(File file, int chunkSize) {
 		
 		var chunks = new ArrayList<ByteBuffer>();
+		var buffer = new byte[chunkSize * 1024];
+		int bytesRead;
 		
-		try (var fis = new FileInputStream(file);
-		     var channel = fis.getChannel()) {
-			
-			var buffer = ByteBuffer.allocate(chunkSize * 1024);
-			int bytesRead;
-			
-			while ((bytesRead = channel.read(buffer)) != -1) {
-				buffer.flip();
-				chunks.add(ByteBuffer.allocate(bytesRead).put(buffer));
-				buffer.clear();
+		try (var fis = new FileInputStream(file)) {
+			while ((bytesRead = fis.read(buffer)) != -1) {
+				var byteBuffer = ByteBuffer.allocate(bytesRead);
+				byteBuffer.put(buffer, 0, bytesRead);
+				byteBuffer.flip(); // Prepare the buffer for reading
+				chunks.add(byteBuffer);
 			}
 		}
 		

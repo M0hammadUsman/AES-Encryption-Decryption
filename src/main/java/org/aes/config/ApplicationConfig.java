@@ -26,4 +26,5 @@ public class ApplicationConfig {
 		return daoAuthProvider;
 		
 	}
+
 }

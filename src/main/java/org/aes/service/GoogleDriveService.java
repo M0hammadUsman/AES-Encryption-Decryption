@@ -1,7 +1,6 @@
 package org.aes.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
 import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
 import com.google.api.client.http.HttpTransport;
@@ -9,46 +8,37 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.store.FileDataStoreFactory;
+import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import org.aes.dto.FileUploadEventDto;
-import org.aes.event.FileUploadEvent;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.io.File;
-import java.io.InputStreamReader;
 import java.io.StringReader;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
 
+@Slf4j(topic = "GoogleDriveService")
 @RequiredArgsConstructor
-@PropertySource("classpath:messages.properties")
 @Service
 public class GoogleDriveService {
 	
-	private final ApplicationEventPublisher applicationEventPublisher;
 	@Getter
-	private static  GoogleAuthorizationCodeFlow flow;
+	private static GoogleAuthorizationCodeFlow flow;
 	private static final String APPLICATION_NAME = "AES Encryption Decryption (KFUEIT)";
 	private static final HttpTransport HTTP_TRANSPORT = new NetHttpTransport();
 	private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
 	private static final List<String> SCOPES = Collections.singletonList(DriveScopes.DRIVE);
-	private static final Path TEMP_DIR_PATH = Paths.get(System.getProperty("java.io.tmpdir"));
 	
 	@Value("${google.oauth.callback.uri}")
 	private String callbackUri;
@@ -59,9 +49,6 @@ public class GoogleDriveService {
 	@Value("${google.oauth.credentials.folder.path}")
 	private Resource credentialsFolderPath;
 	
-	@Value("${gdrive.resumable.upload.url}")
-	private String gDriveUplaodUrl;
-	
 	
 	@SneakyThrows
 	@PostConstruct
@@ -70,24 +57,43 @@ public class GoogleDriveService {
 		var decodedCredentials = Base64.getDecoder().decode(oauthCredentials);
 		var decodedJsonCredentials = new ObjectMapper().readValue(decodedCredentials, Object.class).toString();
 		
-		var googleClientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new StringReader(decodedJsonCredentials));
+		var googleClientSecrets = GoogleClientSecrets.load(JSON_FACTORY,
+			new StringReader(decodedJsonCredentials));
+		
 		flow = new GoogleAuthorizationCodeFlow.Builder(HTTP_TRANSPORT, JSON_FACTORY, googleClientSecrets, SCOPES)
 			.setDataStoreFactory(new FileDataStoreFactory(credentialsFolderPath.getFile()))
+			//Setting setAccessType("offline") indicates that you want to receive a refresh token, and
+			// setApprovalPrompt("force") ensures that the user is prompted to grant consent, even if
+			// they have previously granted access to your application, in case your CredentialStore gets deleted
 			.setAccessType("offline")
+			.setApprovalPrompt("force")
 			.build();
 		
 	}
 	
 	@SneakyThrows
+	public Drive getDrive() {
+		var authenticatedUserId = SecurityContextHolder.getContext().getAuthentication().getName();
+		return new Drive.Builder(HTTP_TRANSPORT, JSON_FACTORY, flow.loadCredential(authenticatedUserId))
+			.setApplicationName(APPLICATION_NAME)
+			.build();
+	}
+	
+	@SneakyThrows
 	public boolean isDriveAuthorized(String email) {
-		/*
-		The documentation says:
+/*		The documentation says:
 		Call AuthorizationCodeFlow.loadCredential(String)) based on the user ID to check if the end-user's
 		credentials are already known If so, we're done. So, we use refreshToken() method to Request a new access
-		token from the authorization endpoint and returning true else if no refresh token exists returns false
-		*/
+		token from the authorization endpoint and returning true else if no refresh token exists returns false*/
 		var credentials = flow.loadCredential(email);
-		return credentials.refreshToken();
+		
+		try {
+			return credentials != null && credentials.refreshToken();
+		} catch (Exception e) {
+			throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT,
+				"Unable to complete authorization sequence due to some network issues");
+		}
+		
 	}
 	
 	@SneakyThrows
@@ -102,44 +108,4 @@ public class GoogleDriveService {
 		flow.createAndStoreCredential(googleTokenResponse, userId);
 	}
 	
-	@SneakyThrows
-	public void createFile(String userId, MultipartFile multipartFile) {
-		
-		var credentials = flow.loadCredential(userId);
-		
-		var tempFilePath = TEMP_DIR_PATH + "/" + UUID.randomUUID() + multipartFile.getOriginalFilename();
-		var tempFile = new File(tempFilePath);
-		multipartFile.transferTo(tempFile);
-		
-		var resumableUploadUrl = getResumableUploadUrl(credentials, multipartFile.getOriginalFilename());
-		var fileUploadEventDto = new FileUploadEventDto(tempFile, resumableUploadUrl);
-		
-		applicationEventPublisher.publishEvent(new FileUploadEvent(fileUploadEventDto));
-		
-	}
-	
-	private String getResumableUploadUrl(Credential credentials, String filename) {
-		
-		String requestBody = """
-			{"name" : "%s"}
-			""".formatted(filename);
-		
-		var response = RestClient.create(gDriveUplaodUrl)
-			.method(HttpMethod.POST)
-			.body(requestBody)
-			.headers(h -> {
-				h.setBearerAuth(credentials.getAccessToken());
-		 		h.setContentType(MediaType.APPLICATION_JSON);
-				h.setContentLanguage(Locale.ENGLISH);
-				h.setContentLength(requestBody.getBytes().length);
-				h.set("X-Upload-Content-Type", "file/mimetype");
-			})
-			.retrieve()
-			.toBodilessEntity();
-		
-		return response.getStatusCode().isSameCodeAs(HttpStatus.OK)
-		 ? response.getHeaders().getFirst(HttpHeaders.LOCATION)
-		 : HttpStatus.UNAUTHORIZED.getReasonPhrase();
-
-	}
 }
