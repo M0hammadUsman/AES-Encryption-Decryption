@@ -39,4 +39,4 @@ spring:
 
 logging:
   level:
-    org.aes.service: debug
+    org.aes.service: info

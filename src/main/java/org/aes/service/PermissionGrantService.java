@@ -28,7 +28,7 @@ public class PermissionGrantService {
 	@Async
 	public void grantDriveFilePermission(FilePermissionGrantDto filePermissionGrantDto) {
 		
-		while (!InternetConnectivityChecker.isDriveApiAccessible()) Thread.sleep(Duration.ofSeconds(10));
+		while (InternetConnectivityChecker.isDriveApiNonAccessible()) Thread.sleep(Duration.ofSeconds(10));
 		
 		var permissionList = createPermission(filePermissionGrantDto.shareToUsersList());
 		

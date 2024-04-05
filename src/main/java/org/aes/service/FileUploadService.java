@@ -62,7 +62,7 @@ public class FileUploadService {
 	@Async
 	public void uploadFileChunks(GDriveFileDto gDriveFileDto) {
 		
-		while (!InternetConnectivityChecker.isDriveApiAccessible()) Thread.sleep(Duration.ofSeconds(10));
+		while (InternetConnectivityChecker.isDriveApiNonAccessible()) Thread.sleep(Duration.ofSeconds(10));
 		
 		var fileChunks = FileChunkProvider.getChunks(gDriveFileDto.file(), UPLOAD_CHUNK_SIZE);
 		var totalBytesInFileChunks = fileChunks.stream().mapToInt(chunk -> chunk.array().length).sum();

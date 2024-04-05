@@ -9,14 +9,14 @@ public class InternetConnectivityChecker {
 	
 	}
 	
-	public static boolean isDriveApiAccessible() {
+	public static boolean isDriveApiNonAccessible() {
 		try {
 			// Attempt to connect to Google Drive API
 			RestClient.create("https://www.googleapis.com/drive/v3").method(HttpMethod.GET).retrieve();
-			return true;
+			return false;
 		} catch (Exception e) {
 			// Connection attempt failed, Bad Internet Connection
-			return false;
+			return true;
 		}
 	}
 	
