@@ -21,13 +21,10 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.File;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.*;
@@ -39,7 +36,6 @@ import java.util.concurrent.atomic.AtomicReference;
 public class FileUploadService {
 	
 	private final ApplicationEventPublisher applicationEventPublisher;
-	private static final Path TEMP_DIR_PATH = Paths.get(System.getProperty("java.io.tmpdir"));
 	private static final int UPLOAD_CHUNK_SIZE = 2048; //KBs
 	private static final int MAX_BACKOFF_TIME = 64000; //64 Sec
 	private static final int MAX_UPLOAD_RETRIES = 16; // 17 retries -> 0 based
@@ -54,7 +50,7 @@ public class FileUploadService {
 		var resumableUploadUri = getResumableUploadUrl(userCredentials, file);
 		
 		if (resumableUploadUri == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
-			"Unauthorized while  resumable uri for file upload for this user");
+			"Unauthorized while resumable uri for file upload for this user");
 		
 		var fileUploadEventDto = new GDriveFileDto(file, resumableUploadUri, shareToList);
 		
@@ -135,61 +131,68 @@ public class FileUploadService {
 		// Use AtomicReference to hold the uploadedFileId as its in lambda context
 		var uploadedFileId = new AtomicReference<String>();
 		
-		RestClient.create(gDriveFileDto.resumableUrl())
-			.method(HttpMethod.PUT)
-			.body(chunk)
-			.headers(h -> {
-				// Content-Length: Set to the number of bytes in the current chunk.
-				h.setContentLength(chunk.length);
-				//Content-Range: Set to show which bytes in the file you upload
-				// For example, Content-Range: bytes 0-524287/2000000 shows that you upload the first 524,288 bytes
-				// (256 x 1024 x 2) in a 2,000,000 byte file.
-				h.set(HttpHeaders.CONTENT_RANGE,
-					"bytes " + contentRangeA + "-" + (contentRangeB) + "/" + gDriveFileDto.file().length());
-				
-				log.debug("Uploading File Chunks Content Range: Bytes {}-{}/{}",
-					contentRangeA, contentRangeB, gDriveFileDto.file().length());
-			})
-			.retrieve()
-			.onStatus(HttpStatusCode::is5xxServerError, (req, res) ->
-				// To fix 5xxServerErrors, use exponential backoff to retry the request
-				initiateRetryAttempt(gDriveFileDto, chunk, retryIndex, contentRangeA, contentRangeB)
-			)
-			.onStatus(HttpStatusCode::is4xxClientError, (req, res) ->
-				// For any 4xx errors (including 403) during a resumable upload, restart the upload.
-				// These errors indicate the upload session has expired and must be restarted
-				// by requesting a new session URI. Upload sessions also expire after one week of inactivity.
-				// So, publishing a new FileUploadEvent to initiate upload from beginning
-				applicationEventPublisher.publishEvent(new FileUploadEvent(gDriveFileDto))
-			)
-			.onStatus(HttpStatusCode::is3xxRedirection, (req, res) -> {
-				
-				var uploadedBytes = Integer.parseInt(Objects.requireNonNull(res.getHeaders()
-						.getFirst("range"))
-					.split("-")[1]);
-				
-				log.debug("ResponseStatusCode: {}, Uploaded Bytes: {} | @{}",
-					res.getStatusCode(), uploadedBytes, res.getHeaders().getFirst("date"));
-				// If you received a 308 Resume Incomplete response, process the Range header of the response
-				// to determine which bytes the server has received. If the response doesn't have a Range header,
-				// no bytes have been received. For example, a Range header of bytes=0-42 indicates that the
-				// first 43 bytes of the file were received and that the next chunk to upload would start with byte 44.
-				handleUploadedBytesResponse(gDriveFileDto, chunk, contentRangeA, contentRangeB, res, uploadedBytes);
-			})
-			.onStatus(HttpStatusCode::is2xxSuccessful, (req, res) -> {
-				
-				log.debug("ResponseStatusCode: {}, Uploaded Bytes: {} | @{}",
-					res.getStatusCode(),
-					contentRangeB,
-					res.getHeaders().getFirst("date"));
-				log.debug("ResponseStatusCode: {}, File Uploaded Successfully!", res.getStatusCode());
-				
-				var responseDto = new ObjectMapper()
-					.readValue(res.getBody(), FileUploadResponseDto.class);
-				
-				uploadedFileId.set(responseDto.getMappedResponse().get("id"));
-			})
-			.toBodilessEntity();
+		try {
+			
+			RestClient.create(gDriveFileDto.resumableUrl())
+				.method(HttpMethod.PUT)
+				.body(chunk)
+				.headers(h -> {
+					// Content-Length: Set to the number of bytes in the current chunk.
+					h.setContentLength(chunk.length);
+					//Content-Range: Set to show which bytes in the file you upload
+					// For example, Content-Range: bytes 0-524287/2000000 shows that you upload the first 524,288 bytes
+					// (256 x 1024 x 2) in a 2,000,000 byte file.
+					h.set(HttpHeaders.CONTENT_RANGE,
+						"bytes " + contentRangeA + "-" + (contentRangeB) + "/" + gDriveFileDto.file().length());
+					
+					log.debug("Uploading File Chunks Content Range: Bytes {}-{}/{}",
+						contentRangeA, contentRangeB, gDriveFileDto.file().length());
+				})
+				.retrieve()
+				.onStatus(HttpStatusCode::is5xxServerError, (req, res) ->
+					// To fix 5xxServerErrors, use exponential backoff to retry the request
+					initiateRetryAttempt(gDriveFileDto, chunk, retryIndex, contentRangeA, contentRangeB)
+				)
+				.onStatus(HttpStatusCode::is4xxClientError, (req, res) ->
+					// For any 4xx errors (including 403) during a resumable upload, restart the upload.
+					// These errors indicate the upload session has expired and must be restarted
+					// by requesting a new session URI. Upload sessions also expire after one week of inactivity.
+					// So, publishing a new FileUploadEvent to initiate upload from beginning
+					applicationEventPublisher.publishEvent(new FileUploadEvent(gDriveFileDto))
+				)
+				.onStatus(HttpStatusCode::is3xxRedirection, (req, res) -> {
+					
+					var uploadedBytes = Integer.parseInt(Objects.requireNonNull(res.getHeaders()
+							.getFirst("range"))
+						.split("-")[1]);
+					
+					log.debug("ResponseStatusCode: {}, Uploaded Bytes: {} | @{}",
+						res.getStatusCode(), uploadedBytes, res.getHeaders().getFirst("date"));
+					// If you received a 308 Resume Incomplete response, process the Range header of the response
+					// to determine which bytes the server has received. If the response doesn't have a Range header,
+					// no bytes have been received. For example, a Range header of bytes=0-42 indicates that the
+					// first 43 bytes of the file were received and that the next chunk to upload would start with byte 44.
+					handleUploadedBytesResponse(gDriveFileDto, chunk, contentRangeA, contentRangeB, res, uploadedBytes);
+				})
+				.onStatus(HttpStatusCode::is2xxSuccessful, (req, res) -> {
+					
+					log.debug("ResponseStatusCode: {}, Uploaded Bytes: {} | @{}",
+						res.getStatusCode(),
+						contentRangeB,
+						res.getHeaders().getFirst("date"));
+					log.debug("ResponseStatusCode: {}, File Uploaded Successfully!", res.getStatusCode());
+					
+					var responseDto = new ObjectMapper()
+						.readValue(res.getBody(), FileUploadResponseDto.class);
+					
+					uploadedFileId.set(responseDto.getMappedResponse().get("id"));
+				})
+				.toBodilessEntity();
+			
+		} catch (Exception e) {
+			log.debug("Exception while uploading file: {}", e.getMessage());
+			initiateRetryAttempt(gDriveFileDto, chunk, retryIndex, contentRangeA, contentRangeB);
+		}
 		
 		return Optional.ofNullable(uploadedFileId.get());
 		
